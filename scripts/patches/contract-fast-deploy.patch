@@ -1,0 +1,50 @@
+diff --git a/helpers/logic/artifacts.ts b/helpers/logic/artifacts.ts
+index a6824ac..b8e9a0f 100644
+--- a/helpers/logic/artifacts.ts
++++ b/helpers/logic/artifacts.ts
+@@ -251,16 +251,37 @@ function testingSubsetArtifacts(): (undefined | (undefined | FormattedArtifact)[
+  * @returns complete
+  */
+ async function loadArtifacts(verifierContract: Verifier, artifactList: ArtifactConfig[]) {
+-  for (const artifactConfig of artifactList) {
++  const total = artifactList.length;
++  for (let i = 0; i < total; i += 1) {
++    const artifactConfig = artifactList[i];
++    console.log(
++      `  [${String(i + 1).padStart(2, '0')}/${total}] setting vkey ${artifactConfig.nullifiers}x${artifactConfig.commitments}`,
++    );
+     const artifact = getKeys(artifactConfig.nullifiers, artifactConfig.commitments);
+-    await (
+-      await verifierContract.setVerificationKey(
+-        artifactConfig.nullifiers,
+-        artifactConfig.commitments,
+-        artifact.solidityVKey,
+-      )
+-    ).wait();
++    const tx = await verifierContract.setVerificationKey(
++      artifactConfig.nullifiers,
++      artifactConfig.commitments,
++      artifact.solidityVKey,
++    );
++    // anvil automines instantly, but ethers' default 4s receipt polling makes
++    // the ~91 sequential txs here take minutes. Poll the receipt directly.
++    await waitForReceipt(verifierContract.provider, tx.hash);
++  }
++}
++
++async function waitForReceipt(
++  provider: {
++    getTransactionReceipt(txHash: string): Promise<unknown>;
++    waitForTransaction(txHash: string): Promise<unknown>;
++  },
++  txHash: string,
++): Promise<unknown> {
++  for (let i = 0; i < 100; i += 1) {
++    const receipt = await provider.getTransactionReceipt(txHash);
++    if (receipt) return receipt;
++    await new Promise((resolve) => setTimeout(resolve, 100));
+   }
++  return provider.waitForTransaction(txHash);
+ }
+ 
+ const listArtifacts = artifacts.listArtifacts;

@@ -20,10 +20,21 @@ devenv shell    # provides node 22, anvil, cast, git + the terminal-wallet-cli c
 # Each session: launch anvil + deploy contracts (fast, idempotent).
 ./scripts/up.sh
 
-# Stop anvil (state preserved) / reset chain state:
+# Create a wallet and fund its public address (10 ETH from anvil account 0),
+# then switch the wallet's network to Local Anvil so the TUI boots onto the
+# local chain. The password (>= 8 chars) must match the TUI's.
+TW_PASSWORD=changeme123 ./scripts/create-and-fund-wallet.sh "Wallet A"
+
+# Stop anvil (state preserved) / reset chain state (stops anvil first):
 ./scripts/up.sh --stop
 ./scripts/up.sh --fresh
 ```
+
+> **The first deploy takes several minutes** (it writes circuit artifacts
+> on-chain, one tx each). `up.sh` prints progress from the deploy script and
+> then **verifies the wrapped token (WETH9) is deployed** — if a deploy was
+> interrupted mid-artifacts, `up.sh` refuses to continue and tells you to run
+> `./scripts/up.sh --fresh`. Do not interrupt the deploy.
 
 `install.sh` and `up.sh` never touch `railgun-cache/` except to read/write it.
 The only way to delete the cache (installed deps + downloaded artifacts) is
@@ -45,25 +56,29 @@ to its baked-in defaults, which is all the local chain needs.
 ## 2. Terminal Wallet menu paths
 
 The app is a keyboard-driven deck with five columns
-(Private / Public / Morpho / f(x) / Utilities).
+(Private / Public / Morpho / f(x) / Utilities). The command palette is opened
+with `:`; most actions also live on the clickable cards along the top.
 
 | Action | Menu path |
 | ------ | --------- |
-| Switch to local chain | Utilities → **Switch Network** → **Local Anvil (31337)** |
-| Shield ETH | Public Actions → **Shield** → pick **ETH** → amount → confirm |
-| Private transfer A→B | Private Actions → **Send** → pick recipient 0zk address → amount → confirm |
-| Check balances | Utilities → **Refresh Balances** (or read the dashboard) |
+| Open the command palette | `:` (or Ctrl-K) |
+| Switch to local chain | `:` → Utilities → **Switch Network** → **Local Anvil (31337)** (or click the network card) |
+| Shield ETH | `:` → Public Actions → **Shield** → pick **ETH** → amount → confirm |
+| Private transfer A→B | `:` → Private Actions → **Send** → pick recipient 0zk address → amount → confirm |
+| Check balances | `:` → Utilities → **Refresh Balances** (or click the sync card) |
 | Create wallet B | Wallet Tools / **New / Import Wallet** |
 
 ### First boot
 
-1. Set a local password (used to encrypt the keychain; anything works).
-2. Create wallet A (or import a mnemonic).
-3. Note wallet A's **public (0x) address** shown on the dashboard. Anvil account
-   0 (10000 ETH) is available; fund wallet A's public address from it if needed
-   (e.g. `cast send --unlocked --from 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 <addr> --value 100ether`).
-4. Utilities → **Switch Network** → **Local Anvil (31337)**. The first switch
-   triggers a merkletree scan from block 0.
+1. Set a local password — **the same one you used for
+   `create-and-fund-wallet.sh`** (it encrypts the seed).
+2. If you used the script, wallet A already exists and is on **Local Anvil
+   (31337)** with its public address funded — the dashboard shows it.
+3. Otherwise create wallet A (or import a mnemonic) and fund its public 0x
+   address from anvil account 0, e.g.
+   `cast send --unlocked --from 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 <addr> --value 100ether`.
+4. `:` → Utilities → **Switch Network** → **Local Anvil (31337)**. The first
+   switch triggers a merkletree scan from block 0.
 
 ### Shield
 
@@ -96,7 +111,7 @@ The app is a keyboard-driven deck with five columns
 | Step | Time (first run) | Time (later) |
 | ---- | ---------------- | ------------ |
 | `./scripts/install.sh` — pulls ~1GB contract artifacts + TW deps | several minutes | seconds (cached) |
-| anvil + contract deploy (`deploy:test`) | ~1–2 min | seconds (`up.sh`) |
+| anvil + contract deploy (`deploy:test`) — first run writes every circuit artifact on-chain, one tx each; `up.sh` re-deploys if it detects an incomplete one | ~5–10 min | seconds (`up.sh`) |
 | Merkle-tree scan (chain 31337, from block 0) | seconds (local RPC) | seconds |
 | **First proof generation** (shield or transfer) — downloads proving artifacts (IPFS) on demand, cached under `railgun-cache/tw-src/.railgun.artifacts` | ~1–3 min | ~10–60 s |
 | Subsequent proofs | — | faster (cached) |

@@ -29,3 +29,19 @@ index 0153fe0..f6a658b 100644
  ];
  
  /** Pick + switch the active network. Returns the new network if it changed. */
+diff --git a/src/railgun/balance/balance-util.ts b/src/railgun/balance/balance-util.ts
+index 8835319..b89f587 100644
+--- a/src/railgun/balance/balance-util.ts
++++ b/src/railgun/balance/balance-util.ts
+@@ -40,7 +40,10 @@ export const getWrappedTokenBalance = async (
+ ) => {
+   const wrappedInfo = getWrappedTokenInfoForChain(chainName);
+ 
+-  const { name } = await getTokenInfo(chainName, wrappedInfo.wrappedAddress);
++  const info = await getTokenInfo(chainName, wrappedInfo.wrappedAddress).catch(
++    () => undefined,
++  );
++  const name = info?.name ?? wrappedInfo.wrappedSymbol;
+ 
+   const wrappedBalance = useGasBalance
+     ? await getCurrentWalletGasBalance()

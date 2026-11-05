@@ -1,0 +1,63 @@
+diff --git a/node_modules/@railgun-community/wallet/dist/services/poi/wallet-poi-node-interface.js b/node_modules/@railgun-community/wallet/dist/services/poi/wallet-poi-node-interface.js
+index 13254fc..cef409b 100644
+--- a/node_modules/@railgun-community/wallet/dist/services/poi/wallet-poi-node-interface.js
++++ b/node_modules/@railgun-community/wallet/dist/services/poi/wallet-poi-node-interface.js
+@@ -41,6 +41,16 @@ class WalletPOINodeInterface extends engine_1.POINodeInterface {
+         }
+         return networkPOISettings;
+     }
++    // True only when this chain has POI settings (e.g. Hardhat/anvil has none,
++    // so POI is fully disabled locally). Safe wrapper around getPOISettings.
++    static isActiveForChain(chain) {
++        try {
++            return WalletPOINodeInterface.getPOISettings(chain) != null;
++        }
++        catch {
++            return false;
++        }
++    }
+     // eslint-disable-next-line class-methods-use-this
+     isActive(chain) {
+         return WalletPOINodeInterface.getPOISettings(chain) != null;
+@@ -88,6 +98,9 @@ class WalletPOINodeInterface extends engine_1.POINodeInterface {
+         }
+     };
+     async getPOIsPerList(txidVersion, chain, listKeys, blindedCommitmentDatas) {
++        if (!WalletPOINodeInterface.isActiveForChain(chain)) {
++            return {};
++        }
+         const poisPerList = {};
+         for (let i = 0; i < blindedCommitmentDatas.length; i += this.batchSize) {
+             if (WalletPOINodeInterface.isPausedForChain(chain)) {
+@@ -123,12 +136,21 @@ class WalletPOINodeInterface extends engine_1.POINodeInterface {
+         return poisPerListConverted;
+     }
+     async getPOIMerkleProofs(txidVersion, chain, listKey, blindedCommitments) {
++        if (!WalletPOINodeInterface.isActiveForChain(chain)) {
++            return {};
++        }
+         return this.poiNodeRequest.getPOIMerkleProofs(txidVersion, chain, listKey, blindedCommitments);
+     }
+     async validatePOIMerkleroots(txidVersion, chain, listKey, poiMerkleroots) {
++        if (!WalletPOINodeInterface.isActiveForChain(chain)) {
++            return true;
++        }
+         return this.poiNodeRequest.validatePOIMerkleroots(txidVersion, chain, listKey, poiMerkleroots);
+     }
+     async submitPOI(txidVersion, chain, listKey, snarkProof, poiMerkleroots, txidMerkleroot, txidMerklerootIndex, blindedCommitmentsOut, railgunTxidIfHasUnshield) {
++        if (!WalletPOINodeInterface.isActiveForChain(chain)) {
++            return;
++        }
+         const transactProofData = {
+             snarkProof,
+             poiMerkleroots,
+@@ -140,6 +162,9 @@ class WalletPOINodeInterface extends engine_1.POINodeInterface {
+         return this.poiNodeRequest.submitPOI(txidVersion, chain, listKey, transactProofData);
+     }
+     async submitLegacyTransactProofs(txidVersion, chain, listKeys, legacyTransactProofDatas) {
++        if (!WalletPOINodeInterface.isActiveForChain(chain)) {
++            return;
++        }
+         for (let i = 0; i < legacyTransactProofDatas.length; i += this.batchSize) {
+             if (WalletPOINodeInterface.isPausedForChain(chain)) {
+                 continue;
