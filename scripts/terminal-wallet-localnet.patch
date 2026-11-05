@@ -1,0 +1,31 @@
+diff --git a/src/config/config-defaults.ts b/src/config/config-defaults.ts
+index 559bf49..3339bac 100644
+--- a/src/config/config-defaults.ts
++++ b/src/config/config-defaults.ts
+@@ -230,9 +230,9 @@ export default {
+     },
+ 
+     [NetworkName.Hardhat]: {
+-      chainId: 1337,
+-      providers: [],
+-      name: "Hardhat",
++      chainId: 31337,
++      providers: [getProviderObjectFromURL("http://127.0.0.1:8545")],
++      name: "Local Anvil",
+       blockscan: "",
+       type: ChainType.EVM,
+     },
+diff --git a/src/tui/screens/utility-flows.ts b/src/tui/screens/utility-flows.ts
+index 0153fe0..f6a658b 100644
+--- a/src/tui/screens/utility-flows.ts
++++ b/src/tui/screens/utility-flows.ts
+@@ -30,6 +30,9 @@ const NETWORKS: { label: string; value: NetworkName }[] = [
+   { label: "Polygon", value: NetworkName.Polygon },
+   { label: "Arbitrum", value: NetworkName.Arbitrum },
+   { label: "BNB Chain", value: NetworkName.BNBChain },
++  // Local-only dev network (chain id 31337). Only reachable when anvil is up
++  // on http://127.0.0.1:8545; harmless to list on other networks.
++  { label: "Local Anvil (31337)", value: NetworkName.Hardhat },
+ ];
+ 
+ /** Pick + switch the active network. Returns the new network if it changed. */

@@ -1,0 +1,18 @@
+# devenv internals
+.devenv/
+
+# legacy demo dir (no longer used; kept as a safety net)
+.demo/
+
+# durable demo cache: installed repos, node_modules, artifacts, chain state.
+# Never committed. Only scripts/purge-cache.sh deletes it.
+railgun-cache/
+
+# Terminal Wallet runtime data (created inside railgun-cache/tw-src)
+.railgun.db
+.railgun.artifacts
+.zKeyChains
+twallet.config.json
+
+# logs
+*.log
