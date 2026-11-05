@@ -19,38 +19,69 @@ CONTRACT="$CACHE/contract"
 TW_SRC="$CACHE/tw-src"
 PROXY_ADDR="0x610178dA211FEF7D417bC0e6FeD39F05609AD788"
 
-anvil_up() { [ "$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null || true)" = "$CHAIN_ID" ]; }
+# --- timing/logging -------------------------------------------------------
+LOG_NAME="up"
+# shellcheck source=./_log.sh
+source "$SCRIPT_DIR/_log.sh"
+init_log
+trap print_summary EXIT
+
+anvil_up() { [ "$(timeout 3 cast chain-id --rpc-url "$RPC_URL" 2>/dev/null || true)" = "$CHAIN_ID" ]; }
 
 case "${1:-}" in
   --stop)
     [ -f "$ANVIL_PID_FILE" ] && kill "$(cat "$ANVIL_PID_FILE")" 2>/dev/null || true
     pkill -f "anvil --chain-id $CHAIN_ID" 2>/dev/null || true
-    echo "anvil stopped"; exit 0 ;;
-  --fresh) rm -f "$STATE_FILE" "$ANVIL_PID_FILE" ;;
+    log "anvil stopped"
+    print_summary
+    exit 0 ;;
+  --fresh)
+    run_timed "wipe chain state" rm -f "$STATE_FILE" "$ANVIL_PID_FILE"
+    log "fresh mode: chain state wiped" ;;
+  *)
+    log "mode: normal (use --fresh to reset, --stop to stop)" ;;
 esac
 
 # ensure installed once
-[ -d "$CONTRACT/node_modules" ] && [ -d "$TW_SRC/node_modules" ] || "$SCRIPT_DIR/install.sh"
+if [ -d "$CONTRACT/node_modules" ] && [ -d "$TW_SRC/node_modules" ]; then
+  log "deps already installed"
+else
+  log "deps missing; running install.sh"
+  run_timed "install.sh" "$SCRIPT_DIR/install.sh"
+fi
 
 if ! anvil_up; then
   if [ -f "$STATE_FILE" ]; then
+    log "starting anvil (load-state)"
     anvil --chain-id "$CHAIN_ID" --code-size-limit 100000 --load-state "$STATE_FILE" >"$ANVIL_LOG" 2>&1 &
   else
+    log "starting anvil (fresh state)"
     anvil --chain-id "$CHAIN_ID" --code-size-limit 100000 --state "$STATE_FILE" >"$ANVIL_LOG" 2>&1 &
   fi
   echo $! > "$ANVIL_PID_FILE"
+  local_start=$(_now)
   for _ in $(seq 1 60); do anvil_up && break; sleep 1; done
-  anvil_up || { echo "anvil failed; see $ANVIL_LOG" >&2; exit 1; }
+  local_end=$(_now)
+  if anvil_up; then
+    _record "anvil startup" "$local_start" "$local_end" 0
+  else
+    _record "anvil startup" "$local_start" "$local_end" 1
+    log "anvil failed; see $ANVIL_LOG"
+    exit 1
+  fi
+else
+  log "anvil already up"
 fi
-echo "anvil up: $RPC_URL (chain $CHAIN_ID)"
+log "anvil up: $RPC_URL (chain $CHAIN_ID)"
 
+run_timed "probe proxy code" bash -c 'cast code --rpc-url "$1" "$2" >/dev/null 2>&1 || true' _ "$RPC_URL" "$PROXY_ADDR"
 code="$(cast code --rpc-url "$RPC_URL" "$PROXY_ADDR" 2>/dev/null || true)"
 if [ -z "$code" ] || [ "$code" = "0x" ]; then
-  echo "deploying RAILGUN contracts…"
-  (cd "$CONTRACT" && npm run deploy) >"$DEPLOY_LOG" 2>&1
-  echo "deployed (log: $DEPLOY_LOG)"
+  log "deploying RAILGUN contracts…"
+  run_timed_in "$CONTRACT" "deploy contracts" bash -c 'npm run deploy 2>&1 | tee "$1"' _ "$DEPLOY_LOG"
+  log "deployed (log: $DEPLOY_LOG)"
 else
-  echo "contracts already deployed at $PROXY_ADDR"
+  log "contracts already deployed at $PROXY_ADDR"
 fi
 
 cat <<EOF
@@ -65,3 +96,4 @@ Run the wallet (a command, installed once):
         Public Actions -> Shield -> ETH        (no POI wait on 31337)
         Private Actions -> Send -> 0zk recipient -> Self-send fee
 EOF
+print_summary
